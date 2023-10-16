@@ -224,10 +224,7 @@ public sealed class Plan : IPlan
     /// </remarks>
     public Task<Plan> RunNextStepAsync(IKernel kernel, ContextVariables variables, CancellationToken cancellationToken = default)
     {
-        var context = new SKContext(
-            kernel,
-            variables,
-            kernel.Functions);
+        var context = kernel.CreateNewContext(variables);
 
         return this.InvokeNextStepAsync(context, cancellationToken);
     }
@@ -249,14 +246,9 @@ public sealed class Plan : IPlan
             var functionVariables = this.GetNextStepVariables(context.Variables, step);
 
             // Execute the step
-            var functionContext = new SKContext(context.Kernel, functionVariables, context.Functions);
+            var result = await context.Runner.RunAsync(step, functionVariables, cancellationToken).ConfigureAwait(false);
 
-            var result = await step.InvokeAsync(functionContext, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            // result.Context.Result is used for backward compatibility and can be removed in the future
-            var resultString = result.GetValue<string>() ?? result.Context.Result;
-
-            var resultValue = resultString.Trim();
+            var resultValue = result.Context.Result.Trim();
 
             #region Update State
 
@@ -341,7 +333,7 @@ public sealed class Plan : IPlan
             // This is done to prevent the function from having access to variables that it shouldn't.
             AddVariablesToContext(this.State, context);
             var functionVariables = this.GetNextStepVariables(context.Variables, this);
-            var functionContext = new SKContext(context.Kernel, functionVariables, context.Functions);
+            var functionContext = context.Clone(functionVariables, context.Functions);
 
             // Execute the step
             result = await this.Function
@@ -365,12 +357,6 @@ public sealed class Plan : IPlan
         }
 
         return result;
-    }
-
-    /// <inheritdoc/>
-    public ISKFunction SetDefaultFunctionCollection(IReadOnlyFunctionCollection functions)
-    {
-        return this.Function is not null ? this.Function.SetDefaultFunctionCollection(functions) : this;
     }
 
     /// <inheritdoc/>
@@ -664,9 +650,14 @@ public sealed class Plan : IPlan
     public bool IsSemantic { get; private set; }
 
     /// <inheritdoc/>
-    [Obsolete("Methods, properties and classes which include Skill in the name have been renamed. Use ISKFunction.SetDefaultFunctionCollection instead. This will be removed in a future release.")]
+    [Obsolete("This method is a nop and will be removed in a future release.")]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public ISKFunction SetDefaultSkillCollection(IReadOnlyFunctionCollection skills) => this.SetDefaultFunctionCollection(skills);
+    public ISKFunction SetDefaultSkillCollection(IReadOnlyFunctionCollection skills) => this;
+
+    /// <inheritdoc/>
+    [Obsolete("This method is a nop and will be removed in a future release.")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ISKFunction SetDefaultFunctionCollection(IReadOnlyFunctionCollection functions) => this;
 
     #endregion
 }
