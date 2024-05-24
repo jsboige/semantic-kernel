@@ -1,52 +1,50 @@
 # Copyright (c) Microsoft. All rights reserved.
-"""Base class for text completion AI services."""
+
 from abc import ABC, abstractmethod
-from logging import Logger
-from typing import TYPE_CHECKING, AsyncGenerator, List, Optional, Union
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, Any
+
+from semantic_kernel.services.ai_service_client_base import AIServiceClientBase
 
 if TYPE_CHECKING:
-    from semantic_kernel.connectors.ai.complete_request_settings import (
-        CompleteRequestSettings,
-    )
+    from semantic_kernel.connectors.ai.prompt_execution_settings import PromptExecutionSettings
+    from semantic_kernel.contents import StreamingTextContent, TextContent
 
 
-class TextCompletionClientBase(ABC):
+class TextCompletionClientBase(AIServiceClientBase, ABC):
     """Base class for text completion AI services."""
 
     @abstractmethod
-    async def complete_async(
+    async def get_text_contents(
         self,
         prompt: str,
-        settings: "CompleteRequestSettings",
-        logger: Optional[Logger] = None,
-    ) -> Union[str, List[str]]:
+        settings: "PromptExecutionSettings",
+    ) -> list["TextContent"]:
         """
         This is the method that is called from the kernel to get a response from a text-optimized LLM.
 
         Arguments:
             prompt {str} -- The prompt to send to the LLM.
-            settings {CompleteRequestSettings} -- Settings for the request.
-            logger {Logger} -- A logger to use for logging.
+            settings {PromptExecutionSettings} -- Settings for the request.
 
             Returns:
-                Union[str, List[str]] -- A string or list of strings representing the response(s) from the LLM.
+            list[TextContent] -- A string or list of strings representing the response(s) from the LLM.
         """
 
     @abstractmethod
-    async def complete_stream_async(
+    def get_streaming_text_contents(
         self,
         prompt: str,
-        settings: "CompleteRequestSettings",
-        logger: Optional[Logger] = None,
-    ) -> AsyncGenerator[Union[str, List[str]], None]:
+        settings: "PromptExecutionSettings",
+    ) -> AsyncGenerator[list["StreamingTextContent"], Any]:
         """
         This is the method that is called from the kernel to get a stream response from a text-optimized LLM.
 
         Arguments:
             prompt {str} -- The prompt to send to the LLM.
-            settings {CompleteRequestSettings} -- Settings for the request.
-            logger {Logger} -- A logger to use for logging.
+            settings {PromptExecutionSettings} -- Settings for the request.
 
         Yields:
-            A stream representing the response(s) from the LLM.
+            list[StreamingTextContent] -- A stream representing the response(s) from the LLM.
         """
+        ...

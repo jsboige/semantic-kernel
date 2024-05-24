@@ -5,12 +5,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.SemanticKernel.Services;
 
-namespace Microsoft.SemanticKernel.AI.TextToImage;
+namespace Microsoft.SemanticKernel.TextToImage;
 
 /// <summary>
 /// Interface for text to image services
 /// </summary>
-[Experimental("SKEXP0002")]
+[Experimental("SKEXP0001")]
 public interface ITextToImageService : IAIService
 {
     /// <summary>
@@ -22,7 +22,7 @@ public interface ITextToImageService : IAIService
     /// <param name="kernel">The <see cref="Kernel"/> containing services, plugins, and other state for use throughout the operation.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Generated image in base64 format or image URL</returns>
-    [Experimental("SKEXP0002")]
+    [Experimental("SKEXP0001")]
     public Task<string> GenerateImageAsync(
         string description,
         int width,

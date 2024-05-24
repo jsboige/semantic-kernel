@@ -6,11 +6,11 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using Microsoft.SemanticKernel.Connectors.Memory.DuckDB;
+using Microsoft.SemanticKernel.Connectors.DuckDB;
 using Microsoft.SemanticKernel.Memory;
 using Xunit;
 
-namespace SemanticKernel.Connectors.UnitTests.Memory.DuckDB;
+namespace SemanticKernel.Connectors.UnitTests.DuckDB;
 
 /// <summary>
 /// Unit tests of <see cref="DuckDBMemoryStore"/>.
@@ -129,7 +129,7 @@ public class DuckDBMemoryStoreTests
 
         // Assert
         var collections2 = db.GetCollectionsAsync();
-        Assert.True(await collections2.CountAsync() == 0);
+        Assert.Equal(0, await collections2.CountAsync());
     }
 
     [Fact]
@@ -622,7 +622,7 @@ public class DuckDBMemoryStoreTests
         IEnumerable<MemoryRecord> records = this.CreateBatchRecords(numRecords);
         await db.CreateCollectionAsync(collection);
 
-        List<string> keys = new();
+        List<string> keys = [];
 
         // Act
         await foreach (var key in db.UpsertBatchAsync(collection, records))

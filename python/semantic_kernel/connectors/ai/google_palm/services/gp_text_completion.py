@@ -1,83 +1,70 @@
 # Copyright (c) Microsoft. All rights reserved.
 
-from logging import Logger
-from typing import List, Optional, Union
+import logging
+from typing import Annotated
 
 import google.generativeai as palm
-from pydantic import constr
+from google.generativeai.types import Completion
+from google.generativeai.types.text_types import TextCompletion
+from pydantic import StringConstraints, ValidationError
 
-from semantic_kernel.connectors.ai.ai_exception import AIException
-from semantic_kernel.connectors.ai.ai_service_client_base import AIServiceClientBase
-from semantic_kernel.connectors.ai.complete_request_settings import (
-    CompleteRequestSettings,
-)
-from semantic_kernel.connectors.ai.text_completion_client_base import (
-    TextCompletionClientBase,
-)
+from semantic_kernel.connectors.ai.google_palm.gp_prompt_execution_settings import GooglePalmTextPromptExecutionSettings
+from semantic_kernel.connectors.ai.google_palm.settings.google_palm_settings import GooglePalmSettings
+from semantic_kernel.connectors.ai.prompt_execution_settings import PromptExecutionSettings
+from semantic_kernel.connectors.ai.text_completion_client_base import TextCompletionClientBase
+from semantic_kernel.contents.text_content import TextContent
+from semantic_kernel.exceptions import ServiceResponseException
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
-class GooglePalmTextCompletion(TextCompletionClientBase, AIServiceClientBase):
-    api_key: constr(strip_whitespace=True, min_length=1)
+class GooglePalmTextCompletion(TextCompletionClientBase):
+    api_key: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
-    def __init__(self, ai_model_id: str, api_key: str, log: Optional[Logger] = None):
+    def __init__(self, ai_model_id: str, api_key: str | None = None, env_file_path: str | None = None):
         """
         Initializes a new instance of the GooglePalmTextCompletion class.
 
         Arguments:
             ai_model_id {str} -- GooglePalm model name, see
                 https://developers.generativeai.google/models/language
-            api_key {str} -- GooglePalm API key, see
-                https://developers.generativeai.google/products/palm
-            log {Optional[Logger]} -- The logger instance to use. (Optional)
+            api_key {str | None} -- The optional API key to use. If not provided, will be
+                read from either the env vars or the .env settings file.
+            env_file_path {str | None} -- Use the environment settings file as a
+                fallback to environment variables. (Optional)
         """
-        super().__init__(ai_model_id=ai_model_id, api_key=api_key, log=log)
+        try:
+            google_palm_settings = GooglePalmSettings.create(env_file_path=env_file_path)
+        except ValidationError as e:
+            logger.warning(f"Error loading Google Palm pydantic settings: {e}")
 
-    async def complete_async(
-        self,
-        prompt: str,
-        request_settings: CompleteRequestSettings,
-        logger: Optional[Logger] = None,
-    ) -> Union[str, List[str]]:
-        response = await self._send_completion_request(prompt, request_settings)
-
-        if request_settings.number_of_responses > 1:
-            return [candidate["output"] for candidate in response.candidates]
-        return response.result
-
-    async def complete_stream_async(
-        self,
-        prompt: str,
-        request_settings: CompleteRequestSettings,
-        logger: Optional[Logger] = None,
-    ):
-        raise NotImplementedError(
-            "Google Palm API does not currently support streaming"
+        api_key = api_key or (
+            google_palm_settings.api_key.get_secret_value()
+            if google_palm_settings and google_palm_settings.api_key
+            else None
+        )
+        ai_model_id = ai_model_id or (
+            google_palm_settings.text_model_id if google_palm_settings and google_palm_settings.text_model_id else None
         )
 
-    async def _send_completion_request(
-        self, prompt: str, request_settings: CompleteRequestSettings
-    ):
+        super().__init__(ai_model_id=ai_model_id, api_key=api_key)
+
+    async def get_text_contents(
+        self, prompt: str, settings: GooglePalmTextPromptExecutionSettings
+    ) -> list[TextContent]:
         """
-        Completes the given prompt. Returns a single string completion.
-        Cannot return multiple completions. Cannot return logprobs.
+        This is the method that is called from the kernel to get a response from a text-optimized LLM.
 
         Arguments:
-            prompt {str} -- The prompt to complete.
-            request_settings {CompleteRequestSettings} -- The request settings.
+            prompt {str} -- The prompt to send to the LLM.
+            settings {GooglePalmTextPromptExecutionSettings} -- Settings for the request.
 
         Returns:
-            str -- The completed text.
+            List[TextContent] -- A list of TextContent objects representing the response(s) from the LLM.
         """
-        if not prompt:
-            raise ValueError("Prompt cannot be `None` or empty")
-        if request_settings is None:
-            raise ValueError("Request settings cannot be `None`")
-        if request_settings.max_tokens < 1:
-            raise AIException(
-                AIException.ErrorCodes.InvalidRequest,
-                "The max tokens must be greater than 0, "
-                f"but was {request_settings.max_tokens}",
-            )
+        settings.prompt = prompt
+        if not settings.ai_model_id:
+            settings.ai_model_id = self.ai_model_id
         try:
             palm.configure(api_key=self.api_key)
         except Exception as ex:
@@ -86,24 +73,35 @@ class GooglePalmTextCompletion(TextCompletionClientBase, AIServiceClientBase):
                 ex,
             )
         try:
-            response = palm.generate_text(
-                model=self.ai_model_id,
-                prompt=prompt,
-                temperature=request_settings.temperature,
-                max_output_tokens=request_settings.max_tokens,
-                stop_sequences=(
-                    request_settings.stop_sequences
-                    if request_settings.stop_sequences is not None
-                    and len(request_settings.stop_sequences) > 0
-                    else None
-                ),
-                candidate_count=request_settings.number_of_responses,
-                top_p=request_settings.top_p,
-            )
+            response = palm.generate_text(**settings.prepare_settings_dict())
         except Exception as ex:
-            raise AIException(
-                AIException.ErrorCodes.ServiceError,
+            raise ServiceResponseException(
                 "Google PaLM service failed to complete the prompt",
                 ex,
-            )
-        return response
+            ) from ex
+        return [self._create_text_content(response, candidate) for candidate in response.candidates]
+
+    def _create_text_content(self, response: Completion, candidate: TextCompletion) -> TextContent:
+        """Create a text content object from a candidate."""
+        return TextContent(
+            inner_content=response,
+            ai_model_id=self.ai_model_id,
+            text=candidate.get("output"),
+            metadata={
+                "filters": response.filters,
+                "safety_feedback": response.safety_feedback,
+                "citation_metadata": candidate.get("citation_metadata"),
+                "safety_ratings": candidate.get("safety_ratings"),
+            },
+        )
+
+    async def get_streaming_text_contents(
+        self,
+        prompt: str,
+        settings: GooglePalmTextPromptExecutionSettings,
+    ):
+        raise NotImplementedError("Google Palm API does not currently support streaming")
+
+    def get_prompt_execution_settings_class(self) -> "PromptExecutionSettings":
+        """Create a request settings object."""
+        return GooglePalmTextPromptExecutionSettings

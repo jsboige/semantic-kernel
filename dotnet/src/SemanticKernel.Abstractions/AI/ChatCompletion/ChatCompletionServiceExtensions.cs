@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Microsoft.SemanticKernel.AI.ChatCompletion;
+namespace Microsoft.SemanticKernel.ChatCompletion;
 
 /// <summary>
 /// Class sponsor that holds extension methods for <see cref="IChatCompletionService"/> interface.
@@ -33,13 +33,16 @@ public static class ChatCompletionServiceExtensions
         CancellationToken cancellationToken = default)
     {
         // Try to parse the text as a chat history
-        if (XmlPromptParser.TryParse(prompt!, out var nodes) && ChatPromptParser.TryParse(nodes, out var chatHistory))
+        if (ChatPromptParser.TryParse(prompt, out var chatHistoryFromPrompt))
         {
-            return chatCompletionService.GetChatMessageContentsAsync(chatHistory, executionSettings, kernel, cancellationToken);
+            return chatCompletionService.GetChatMessageContentsAsync(chatHistoryFromPrompt, executionSettings, kernel, cancellationToken);
         }
 
-        //Otherwise, use the prompt as the chat system message
-        return chatCompletionService.GetChatMessageContentsAsync(new ChatHistory(prompt), executionSettings, kernel, cancellationToken);
+        // Otherwise, use the prompt as the chat user message
+        var chatHistory = new ChatHistory();
+        chatHistory.AddUserMessage(prompt);
+
+        return chatCompletionService.GetChatMessageContentsAsync(chatHistory, executionSettings, kernel, cancellationToken);
     }
 
     /// <summary>
@@ -96,12 +99,15 @@ public static class ChatCompletionServiceExtensions
         CancellationToken cancellationToken = default)
     {
         // Try to parse the text as a chat history
-        if (XmlPromptParser.TryParse(prompt!, out var nodes) && ChatPromptParser.TryParse(nodes, out var chatHistory))
+        if (ChatPromptParser.TryParse(prompt, out var chatHistoryFromPrompt))
         {
-            return chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, executionSettings, kernel, cancellationToken);
+            return chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistoryFromPrompt, executionSettings, kernel, cancellationToken);
         }
 
-        //Otherwise, use the prompt as the chat system message
-        return chatCompletionService.GetStreamingChatMessageContentsAsync(new ChatHistory(prompt), executionSettings, kernel, cancellationToken);
+        // Otherwise, use the prompt as the chat user message
+        var chatHistory = new ChatHistory();
+        chatHistory.AddUserMessage(prompt);
+
+        return chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, executionSettings, kernel, cancellationToken);
     }
 }

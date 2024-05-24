@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json.Serialization;
 
-namespace Microsoft.SemanticKernel.Connectors.Memory.Qdrant.Http.ApiSchema;
+namespace Microsoft.SemanticKernel.Connectors.Qdrant;
 
 internal sealed class DeleteVectorsRequest
 {
@@ -46,7 +46,7 @@ internal sealed class DeleteVectorsRequest
 
     private DeleteVectorsRequest(string collectionName)
     {
-        this.Ids = new List<string>();
+        this.Ids = [];
         this._collectionName = collectionName;
     }
 

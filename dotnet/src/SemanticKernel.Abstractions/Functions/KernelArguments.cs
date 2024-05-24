@@ -3,7 +3,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Microsoft.SemanticKernel.AI;
+using System.Text.Json.Serialization;
 
 #pragma warning disable CA1710 // Identifiers should have correct suffix
 
@@ -23,37 +23,49 @@ public sealed class KernelArguments : IDictionary<string, object?>, IReadOnlyDic
     private readonly Dictionary<string, object?> _arguments;
 
     /// <summary>
-    /// The main input parameter name.
+    /// Initializes a new instance of the <see cref="KernelArguments"/> class with the specified AI execution settings.
     /// </summary>
-    public const string InputParameterName = "input";
+    [JsonConstructor]
+    public KernelArguments()
+    {
+        this._arguments = new(StringComparer.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="KernelArguments"/> class with the specified AI execution settings.
     /// </summary>
     /// <param name="executionSettings">The prompt execution settings.</param>
-    public KernelArguments(PromptExecutionSettings? executionSettings = null)
+    public KernelArguments(PromptExecutionSettings? executionSettings)
     {
-        this._arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        this.ExecutionSettings = executionSettings;
+        this._arguments = new(StringComparer.OrdinalIgnoreCase);
+
+        if (executionSettings is not null)
+        {
+            this.ExecutionSettings = new Dictionary<string, PromptExecutionSettings>() { { PromptExecutionSettings.DefaultServiceId, executionSettings } };
+        }
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="KernelArguments"/> class that contains elements copied from the specified <see cref="IDictionary{TKey, TValue}"/>
+    /// Initializes a new instance of the <see cref="KernelArguments"/> class that contains elements copied from the specified <see cref="IDictionary{TKey, TValue}"/>.
     /// </summary>
     /// <param name="source">The <see cref="IDictionary{TKey, TValue}"/> whose elements are copied the new <see cref="KernelArguments"/>.</param>
-    /// <remarks>If the source is a <see cref="KernelArguments"/>, its elements and <see cref="ExecutionSettings"/> are copied to this instance.</remarks>
-    public KernelArguments(IDictionary<string, object?> source)
+    /// <param name="executionSettings">The prompt execution settings.</param>
+    /// <remarks>
+    /// If <paramref name="executionSettings"/> is non-null, it is used as the <see cref="ExecutionSettings"/> for this new instance.
+    /// Otherwise, if the source is a <see cref="KernelArguments"/>, its <see cref="ExecutionSettings"/> are used.
+    /// </remarks>
+    public KernelArguments(IDictionary<string, object?> source, Dictionary<string, PromptExecutionSettings>? executionSettings = null)
     {
         Verify.NotNull(source);
 
-        this._arguments = new Dictionary<string, object?>(source, StringComparer.OrdinalIgnoreCase);
-        this.ExecutionSettings = (source as KernelArguments)?.ExecutionSettings;
+        this._arguments = new(source, StringComparer.OrdinalIgnoreCase);
+        this.ExecutionSettings = executionSettings ?? (source as KernelArguments)?.ExecutionSettings;
     }
 
     /// <summary>
     /// Gets or sets the prompt execution settings.
     /// </summary>
-    public PromptExecutionSettings? ExecutionSettings { get; set; }
+    public IReadOnlyDictionary<string, PromptExecutionSettings>? ExecutionSettings { get; set; }
 
     /// <summary>
     /// Gets the number of arguments contained in the <see cref="KernelArguments"/>.

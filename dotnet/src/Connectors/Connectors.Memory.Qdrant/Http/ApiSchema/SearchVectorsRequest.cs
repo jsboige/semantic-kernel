@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json.Serialization;
 
-namespace Microsoft.SemanticKernel.Connectors.Memory.Qdrant.Http.ApiSchema;
+namespace Microsoft.SemanticKernel.Connectors.Qdrant;
 
 internal sealed class SearchVectorsRequest
 {
@@ -55,7 +55,7 @@ internal sealed class SearchVectorsRequest
 
     public SearchVectorsRequest HavingTags(IEnumerable<string>? tags)
     {
-        if (tags == null) { return this; }
+        if (tags is null) { return this; }
 
         foreach (var tag in tags)
         {
@@ -160,7 +160,7 @@ internal sealed class SearchVectorsRequest
 
         internal Filter()
         {
-            this.Conditions = new();
+            this.Conditions = [];
         }
 
         internal Filter ValueMustMatch(string key, object value)
